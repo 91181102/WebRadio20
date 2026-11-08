@@ -8,6 +8,7 @@ builder.Services.AddControllersWithViews();
 
 builder.Services.AddSingleton<DatabaseConnectionFactory>();
 builder.Services.AddScoped<YoutubeVideoRepository>();
+builder.Services.AddMemoryCache();
 
 var app = builder.Build();
 

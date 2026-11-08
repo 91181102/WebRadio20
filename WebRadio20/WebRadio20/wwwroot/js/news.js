@@ -7,6 +7,7 @@
     const detailOverlayId = 'news-detail-overlay';
     const detailBodyId = 'news-detail-body';
     let allNewsData = [];
+    let hasLoadedNews = false;
 
     // Elementos DOM (Iniciados como null)
     let container = null;
@@ -14,8 +15,13 @@
     let detailBody = null;
     let closeBtn = null;
     let categoryButtons = null;
+    let updateStatus = null;
+
     // Inicia o intervalo de atualização a cada 3 minutos
-    myVar = setInterval(fetchNews, 180000);
+    //myVar = setInterval(fetchNews, 180000);
+    // Intervalo entre atualizações: 3 minutos
+    const UPDATE_INTERVAL = 180000;
+    let updateTimer = null;
 
     // Função Principal: Buscar Notícias (Corrigida para a estrutura da API)
     async function fetchNews() {
@@ -26,13 +32,23 @@
             return;
         }
 
-        container.innerHTML = '<div class="loading-spinner">Carregando últimas notícias...</div>';
+        //container.innerHTML = '<div class="loading-spinner">Carregando últimas notícias...</div>';
+
+        if (!hasLoadedNews) {
+            const loading = document.createElement('div');
+            loading.className = 'loading-spinner';
+            loading.textContent = 'Carregando últimas notícias...';
+
+            container.replaceChildren(loading);
+        }
+
 
         try {
             const response = await fetch(API_URL);
             if (!response.ok) throw new Error('Erro na API: ' + response.status);
 
             const rawData = await response.json();
+            hideUpdateError();
 
             // Verifica se o status é true e se data existe
             if (!rawData.status || !rawData.data) {
@@ -41,6 +57,7 @@
 
             const dataObj = rawData.data;
             let allItems = [];
+            hasLoadedNews = true;
 
             // Extrai todas as listas de categorias e adiciona a propriedade 'category'
             for (const key in dataObj) {
@@ -73,55 +90,152 @@
 
             allNewsData = allItems;
 
-            if (allNewsData.length === 0) {
+            /*if (allNewsData.length === 0) {
                 container.innerHTML = '<p class="empty-msg">Nenhuma notícia encontrada.</p>';
             } else {
                 renderNews(allNewsData);
                 console.log('Notícias carregadas:', allNewsData.length);
+            }*/
+
+            if (allNewsData.length === 0) {
+                console.info('Nenhuma notícia encontrada na API.');
+            } else {
+                console.log('Notícias carregadas:', allNewsData.length);
             }
 
-        } catch (error) {
+            renderNews(allNewsData);
+
+        } catch (error) { // alterado em 08/11/2026 para capturar erros de fetch e JSON.
             console.error('Erro ao carregar notícias:', error);
-            container.innerHTML = '<p class="error-msg">Não foi possível carregar as notícias. Erro: ' + error.message + '</p>';
+            showUpdateError();
+
+            if (!hasLoadedNews) {
+                const errorMessage = document.createElement('p');
+                errorMessage.className = 'error-msg';
+                errorMessage.textContent =
+                    'Não foi possível carregar as notícias. Erro: ' + error.message;
+
+                container.replaceChildren(errorMessage);
+            }
         }
     }
 
-    // Função para Renderizar os Cards (Corrigida para os campos da API)
+    // Exibe aviso de falha na atualização
+    function showUpdateError() {
+        if (!updateStatus) return;
+
+        updateStatus.textContent =
+            'Não foi possível atualizar as notícias. Exibindo os últimos dados disponíveis.';
+
+        updateStatus.style.display = 'block';
+    }
+
+    // Oculta aviso após atualização bem-sucedida
+    function hideUpdateError() {
+        if (!updateStatus) return;
+
+        updateStatus.textContent = '';
+        updateStatus.style.display = 'none';
+    }
+
+    // Agenda a próxima atualização somente após a consulta anterior terminar
+    function scheduleNextUpdate() {
+        updateTimer = setTimeout(async () => {
+            await fetchNews();
+            scheduleNextUpdate();
+        }, UPDATE_INTERVAL);
+    }
+
+    // Função para Renderizar os Cards (08/11/2026)
     function renderNews(newsList) {
         if (!container) return;
 
         if (!newsList || newsList.length === 0) {
-            container.innerHTML = '<p class="empty-msg">Nenhuma notícia encontrada.</p>';
+            const emptyMessage = document.createElement('p');
+            emptyMessage.className = 'empty-msg';
+            emptyMessage.textContent = 'Nenhuma notícia encontrada.';
+
+            container.replaceChildren(emptyMessage);
             return;
         }
 
-        let html = '';
-        newsList.forEach(item => {
-            // Mapeamento dos campos da API para o HTML
-            const title = item.title || 'Sem título';
-            const channel = item.canal || 'Canal';
-            const dateStr = item.publicado_em || '';
-            const thumbnail = item.thumbnail || item.canal_thumbnail || 'https://via.placeholder.com/320x180?text=Sem+Imagem';
-            const category = item.segmento || 'Geral';
-            const videoId = item.videoId || item.id; // Usa videoId se existir, senão id
+        const fragment = document.createDocumentFragment();
 
-            html += `
-        <article class="news-card">
-          <div class="news-thumb">
-            <img src="${thumbnail}" alt="${title}">
-            <span class="news-cat-badge">${category}</span>
-          </div>
-          <div class="news-content">
-            <h3 class="news-title">${title}</h3>
-            <p class="news-source">${channel}</p>
-            <span class="news-date">${dateStr}</span>
-            <button class="read-more-btn" onclick="openNewsDetail(${item.id})">Ler mais</button>
-          </div>
-        </article>
-      `;
+        newsList.forEach(item => {
+
+            const title = String(item.title || 'Sem título');
+            const channel = String(item.canal || 'Canal');
+            const dateStr = String(item.publicado_em || '');
+            const category = String(item.segmento || 'Geral');
+
+            const fallbackImage =
+                'https://via.placeholder.com/320x180?text=Sem+Imagem';
+
+            let thumbnail = fallbackImage;
+
+            try {
+                const imageUrl = new URL(
+                    String(item.thumbnail || item.canal_thumbnail || ''),
+                    window.location.href
+                );
+
+                if (imageUrl.protocol === 'https:') {
+                    thumbnail = imageUrl.href;
+                }
+            } catch {
+                // Mantém a imagem padrão.
+            }
+
+            // Card
+            const article = document.createElement('article');
+            article.className = 'news-card';
+
+            // Thumbnail
+            const thumbDiv = document.createElement('div');
+            thumbDiv.className = 'news-thumb';
+
+            const img = document.createElement('img');
+            img.src = thumbnail;
+            img.alt = title;
+
+            const badge = document.createElement('span');
+            badge.className = 'news-cat-badge';
+            badge.textContent = category;
+
+            thumbDiv.append(img, badge);
+
+            // Conteúdo
+            const content = document.createElement('div');
+            content.className = 'news-content';
+
+            const heading = document.createElement('h3');
+            heading.className = 'news-title';
+            heading.textContent = title;
+
+            const source = document.createElement('p');
+            source.className = 'news-source';
+            source.textContent = channel;
+
+            const date = document.createElement('span');
+            date.className = 'news-date';
+            date.textContent = dateStr;
+
+            const button = document.createElement('button');
+            button.className = 'read-more-btn';
+            button.textContent = 'Ler mais';
+
+            button.addEventListener('click', () => {
+                window.openNewsDetail(item.id);
+            });
+
+            content.append(heading, source, date, button);
+
+            article.append(thumbDiv, content);
+
+            fragment.appendChild(article);
         });
 
-        container.innerHTML = html;
+        container.replaceChildren(fragment);
     }
 
     // Função para Filtrar por Categoria (Corrigida)
@@ -143,89 +257,216 @@
         }
     }
 
-    // Função para Abrir o Detalhe (Modal) - SOLUÇÃO COM PLACEHOLDER (Lazy Load)
+    // Função para Abrir o Detalhe (Modal) - SOLUÇÃO COM PLACEHOLDER (Lazy Load) 08/11/2026.
     window.openNewsDetail = async function (id) {
-        const overlay = $('#news-detail-overlay');
-        const detailBody = $('#news-detail-body');
 
-        if (!overlay.length || !detailBody.length) {
+        const overlayElement = document.getElementById(detailOverlayId);
+        const detailBodyElement = document.getElementById(detailBodyId);
+
+        if (!overlayElement || !detailBodyElement) {
             console.error('Elementos do modal não encontrados!');
             return;
         }
 
-        // 1. Limpa e abre o modal
-        detailBody.empty();
-        overlay.css('display', 'flex');
+        detailBodyElement.replaceChildren();
+        overlayElement.style.display = 'flex';
 
         try {
-            const item = allNewsData.find(n => n.id === id);
-            if (!item) throw new Error('Notícia não encontrada.');
+            const item = allNewsData.find(n => String(n.id) === String(id));
 
-            let videoId = item.videoId;
-            if (!videoId) throw new Error('ID do vídeo não encontrado.');
+            if (!item) {
+                throw new Error('Notícia não encontrada.');
+            }
 
-            videoId = String(videoId).trim().replace(/[^\w-]/g, '');
-            if (videoId.length < 11) throw new Error('ID inválido.');
+            // Valida o identificador do vídeo
+            const videoId = String(item.videoId || '').trim();
 
-            const videoUrl = `https://www.youtube.com/embed/${videoId}?autoplay=1`;
-            const thumbnailUrl = item.thumbnail || `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`;
+            if (!/^[a-zA-Z0-9_-]{11}$/.test(videoId)) {
+                throw new Error('ID do vídeo inválido.');
+            }
 
-            // 2. Cria o Placeholder (Thumbnail com botão de Play)
-            // Isso evita o carregamento imediato dos scripts do YouTube
-            const placeholderHtml = `
-        <div class="video-placeholder" style="position:relative; width:100%; max-width:800px; margin:0 auto; cursor:pointer; border-radius:12px; overflow:hidden; box-shadow:0 4px 12px rgba(0,0,0,0.2);">
-          <img src="${thumbnailUrl}" alt="Assistir ${item.title}" style="width:100%; display:block;">
-          <div style="position:absolute; top:50%; left:50%; transform:translate(-50%, -50%); width:80px; height:80px; background:rgba(200,0,0,0.9); border-radius:50%; display:flex; align-items:center; justify-content:center; transition:transform 0.2s;">
-            <svg width="40" height="40" viewBox="0 0 24 24" fill="white">
-              <path d="M8 5v14l11-7z"/>
-            </svg>
-          </div>
-          <div style="position:absolute; bottom:10px; left:10px; background:rgba(0,0,0,0.7); color:white; padding:4px 8px; font-size:12px; border-radius:4px;">
-            Clique para assistir
-          </div>
-        </div>
-      `;
+            // Valida a thumbnail
+            let thumbnailUrl = `https://img.youtube.com/vi/${videoId}/hqdefault.jpg`;
 
-            detailBody.html(`
-        ${placeholderHtml}
-        <h2 class="detail-title" style="margin-top:15px;">${item.title}</h2>
-        <div class="detail-meta">
-          <span class="detail-source">${item.canal}</span>
-          <span class="detail-date">${item.publicado_em}</span>
-        </div>
-        <div class="detail-desc">${item.description || 'Sem descrição disponível.'}</div>
-      `);
+            try {
+                const imageUrl = new URL(
+                    String(item.thumbnail || ''),
+                    window.location.href
+                );
 
-            // 3. Adiciona o evento de clique para carregar o iframe REAL
-            $('.video-placeholder').on('click', function () {
-                const placeholder = $(this);
+                if (imageUrl.protocol === 'https:') {
+                    thumbnailUrl = imageUrl.href;
+                }
+            } catch {
+                // Mantém a thumbnail padrão do YouTube.
+            }
 
-                // Substitui o placeholder pelo iframe
-                placeholder.replaceWith(`
-          <div class="video-wrapper">
-            <iframe width="100%" height="400" 
-                    src="${videoUrl}" 
-                    frameborder="0" 
-                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
-                    allowfullscreen>
-            </iframe>
-          </div>
-        `);
+            const title = String(item.title || 'Sem título');
+            const channel = String(item.canal || 'Canal');
+            const date = String(item.publicado_em || '');
+            const description = String(
+                item.description || 'Sem descrição disponível.'
+            );
 
-                //console.log('Vídeo carregado via clique (evitando bloqueio inicial).');
+            // Placeholder do vídeo
+            const placeholder = document.createElement('div');
+
+            placeholder.className = 'video-placeholder';
+
+            placeholder.style.cssText =
+                'position:relative; width:100%; max-width:800px; ' +
+                'margin:0 auto; cursor:pointer; border-radius:12px; ' +
+                'overflow:hidden; box-shadow:0 4px 12px rgba(0,0,0,0.2);';
+
+            placeholder.setAttribute('role', 'button');
+            placeholder.setAttribute('tabindex', '0');
+            placeholder.setAttribute('aria-label', 'Assistir vídeo: ' + title);
+
+            const img = document.createElement('img');
+            img.src = thumbnailUrl;
+            img.alt = 'Assistir ' + title;
+            img.style.cssText = 'width:100%; display:block;';
+
+            // Botão Play
+            const playButton = document.createElement('div');
+
+            playButton.style.cssText =
+                'position:absolute; top:50%; left:50%; ' +
+                'transform:translate(-50%,-50%); width:80px; height:80px; ' +
+                'background:rgba(200,0,0,0.9); border-radius:50%; ' +
+                'display:flex; align-items:center; justify-content:center;';
+
+            const svgNS = 'http://www.w3.org/2000/svg';
+
+            const svg = document.createElementNS(svgNS, 'svg');
+            svg.setAttribute('width', '40');
+            svg.setAttribute('height', '40');
+            svg.setAttribute('viewBox', '0 0 24 24');
+            svg.setAttribute('fill', 'white');
+
+            const path = document.createElementNS(svgNS, 'path');
+            path.setAttribute('d', 'M8 5v14l11-7z');
+
+            svg.appendChild(path);
+            playButton.appendChild(svg);
+
+            // Instrução
+            const instruction = document.createElement('div');
+
+            instruction.textContent = 'Clique para assistir';
+
+            instruction.style.cssText =
+                'position:absolute; bottom:10px; left:10px; ' +
+                'background:rgba(0,0,0,0.7); color:white; ' +
+                'padding:4px 8px; font-size:12px; border-radius:4px;';
+
+            placeholder.append(img, playButton, instruction);
+
+            // Título
+            const heading = document.createElement('h2');
+            heading.className = 'detail-title';
+            heading.style.marginTop = '15px';
+            heading.textContent = title;
+
+            // Metadados
+            const meta = document.createElement('div');
+            meta.className = 'detail-meta';
+
+            const source = document.createElement('span');
+            source.className = 'detail-source';
+            source.textContent = channel;
+
+            const dateElement = document.createElement('span');
+            dateElement.className = 'detail-date';
+            dateElement.textContent = date;
+
+            meta.append(source, dateElement);
+
+            // Descrição
+            const desc = document.createElement('div');
+            desc.className = 'detail-desc';
+            desc.textContent = description;
+
+            detailBodyElement.append(
+                placeholder,
+                heading,
+                meta,
+                desc
+            );
+
+            // Carrega o vídeo somente após o clique
+            function loadVideo() {
+
+                const wrapper = document.createElement('div');
+                wrapper.className = 'video-wrapper';
+
+                const iframe = document.createElement('iframe');
+
+                iframe.width = '100%';
+                iframe.height = '400';
+                iframe.src = `https://www.youtube.com/embed/${videoId}?autoplay=1`;
+                iframe.title = title;
+                iframe.setAttribute('frameborder', '0');
+
+                iframe.setAttribute(
+                    'allow',
+                    'accelerometer; autoplay; clipboard-write; ' +
+                    'encrypted-media; gyroscope; picture-in-picture'
+                );
+
+                iframe.setAttribute('allowfullscreen', '');
+
+                wrapper.appendChild(iframe);
+                placeholder.replaceWith(wrapper);
+            }
+
+            placeholder.addEventListener('click', loadVideo);
+
+            placeholder.addEventListener('keydown', (event) => {
+                if (event.key === 'Enter' || event.key === ' ') {
+                    event.preventDefault();
+                    loadVideo();
+                }
             });
 
         } catch (error) {
-            console.error('Erro:', error);
-            detailBody.html(`
-        <div class="error-msg" style="text-align:center; padding:20px; background:#fff3f3; border:1px solid #ffcccc; border-radius:8px;">
-          <h3 style="color:#d32f2f;">Erro ao carregar notícia</h3>
-          <p>${error.message}</p>
-          <button onclick="$('#news-detail-overlay').hide()" style="margin-top:10px; padding:8px 16px; background:#d32f2f; color:white; border:none; border-radius:4px; cursor:pointer;">Fechar</button>
-        </div>
-      `);
+
+            console.error('Erro ao carregar notícia:', error);
+
+            const errorContainer = document.createElement('div');
+            errorContainer.className = 'error-msg';
+
+            errorContainer.style.cssText =
+                'text-align:center; padding:20px; background:#fff3f3; ' +
+                'border:1px solid #ffcccc; border-radius:8px;';
+
+            const heading = document.createElement('h3');
+            heading.style.color = '#d32f2f';
+            heading.textContent = 'Erro ao carregar notícia';
+
+            const message = document.createElement('p');
+            message.textContent = error.message;
+
+            const closeButton = document.createElement('button');
+
+            closeButton.textContent = 'Fechar';
+
+            closeButton.style.cssText =
+                'margin-top:10px; padding:8px 16px; ' +
+                'background:#d32f2f; color:white; border:none; ' +
+                'border-radius:4px; cursor:pointer;';
+
+            closeButton.addEventListener('click', () => {
+                overlayElement.style.display = 'none';
+                detailBodyElement.replaceChildren();
+            });
+
+            errorContainer.append(heading, message, closeButton);
+
+            detailBodyElement.replaceChildren(errorContainer);
         }
     };
+
 
 
     // Inicialização
@@ -236,6 +477,7 @@
         detailBody = document.getElementById(detailBodyId);
         closeBtn = document.getElementById('close-news-btn');
         categoryButtons = document.querySelectorAll('.news-tabs button');
+        updateStatus = document.getElementById('news-update-status');
 
         // Verifica se o container existe antes de tudo
         if (!container) {
@@ -243,7 +485,8 @@
             return;
         }
 
-        fetchNews();
+        //fetchNews();
+        fetchNews().finally(scheduleNextUpdate); // atualizado 08/11/2026.
 
         // Filtros de Categoria
         if (categoryButtons && categoryButtons.length > 0) {
