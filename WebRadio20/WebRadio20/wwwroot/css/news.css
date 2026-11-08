@@ -24,6 +24,20 @@
         padding-left: 10px;
     }
 
+
+/* Aviso de falha na atualização das notícias */
+.news-update-status {
+    display: none;
+    margin: 10px 0 15px;
+    padding: 10px 14px;
+    background-color: #fff3cd;
+    border: 1px solid #ffe69c;
+    border-radius: 6px;
+    color: #664d03;
+    font-size: 0.9rem;
+}
+
+
 /* Abas de Categoria */
 .news-tabs {
     display: flex;
