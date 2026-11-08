@@ -1,0 +1,35 @@
+﻿@{
+    ViewData["Title"] = "Destaques do Dia";
+}
+
+<section class="news-section" id="news-section">
+    <div class="news-header">
+        <h2>DESTAQUES DO DIA</h2>
+
+        <div class="news-tabs">
+            <button class="active" data-category="all">Todos</button>
+            <button data-category="VARIEDADES">Variedades</button>
+            <button data-category="ENTRETENIMENTO">Entretenimento</button>
+            <button data-category="ESPORTE">Esporte</button>
+            <button data-category="MÚSICA">Música</button>
+        </div>
+    </div>
+
+    <div id="news-list-container" class="news-grid">
+        <div class="loading-spinner">
+            Carregando notícias...
+        </div>
+    </div>
+
+    <div id="news-detail-overlay" class="news-overlay">
+        <div class="news-detail-content">
+            <button id="close-news-btn" class="close-btn">&times;</button>
+            <div id="news-detail-body"></div>
+        </div>
+    </div>
+</section>
+
+@section Scripts {
+    <script src="~/js/news.js" asp-append-version="true"></script>
+}
+
