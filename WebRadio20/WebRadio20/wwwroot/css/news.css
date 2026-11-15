@@ -1,10 +1,22 @@
 ﻿/* --- Seção de Notícias --- */
+/*.news-section {
+    background: white;
+    padding: 20px;
+    border-radius: 8px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    margin-top: 25px;
+}*/
+
 .news-section {
     background: white;
     padding: 20px;
     border-radius: 8px;
     box-shadow: 0 1px 3px rgba(0,0,0,0.1);
     margin-top: 25px;
+    height: calc(100vh - 180px);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
 }
 
 .news-header {
@@ -67,10 +79,21 @@
         }
 
 /* Grid de Cards */
+/*.news-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 20px;
+}
+*/
 .news-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
     gap: 20px;
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    align-content: start;
+    grid-auto-rows: max-content;
 }
 
 .news-card {
